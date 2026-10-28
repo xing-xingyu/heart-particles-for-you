@@ -16,7 +16,9 @@ const els = {
   share: $("#shareButton"), feedback: $("#copyFeedback"), fullscreen: $("#fullscreenButton"),
   cameraHelp: $("#cameraHelp"), cameraHelpTitle: $("#cameraHelpTitle"),
   cameraHelpText: $("#cameraHelpText"), retryCamera: $("#retryCamera"),
-  openExternal: $("#openExternal"), helpClose: $("#helpClose")
+  openExternal: $("#openExternal"), helpClose: $("#helpClose"),
+  cameraBoot: $("#cameraBoot"), cameraBootTitle: $("#cameraBootTitle"),
+  cameraBootText: $("#cameraBootText"), cameraBootProgress: $("#cameraBootProgress")
 };
 
 const DEFAULTS = {
@@ -396,7 +398,9 @@ function animate(time = 0) {
 
 function distance(a,b) { return Math.hypot(a.x-b.x, a.y-b.y); }
 function processHand(landmarks) {
+  const wasLost = lostFrames > 12;
   lostFrames = 0; tracking = true;
+  if (wasLost) setStatus("已识别到手势 · 捏合 / 张手 / 握拳", "live");
   const thumb = landmarks[4], index = landmarks[8], wrist = landmarks[0];
   const palmSize = distance(landmarks[5], landmarks[17]) || .16;
   const pinch = distance(thumb,index) / palmSize;
@@ -422,10 +426,12 @@ async function loadHandTracking() {
   if (handLoadPromise) return handLoadPromise;
   handLoadPromise = (async () => {
     setStatus("正在启动本地手势模型…");
+    setCameraBoot("摄像头已开启", "正在加载本地手势识别组件…", 48);
     const moduleUrl = new URL("./vendor/mediapipe/vision_bundle.js", import.meta.url).href;
     const wasmUrl = new URL("./vendor/mediapipe/wasm/", import.meta.url).href;
     const modelUrl = new URL("./vendor/mediapipe/hand_landmarker.task", import.meta.url).href;
     const module = await import(moduleUrl);
+    setCameraBoot("识别组件已加载", "正在初始化手部模型，请稍候…", 68);
     const make = async (delegate) => {
       const vision = await module.FilesetResolver.forVisionTasks(wasmUrl);
       return module.HandLandmarker.createFromOptions(vision, {
@@ -437,6 +443,7 @@ async function loadHandTracking() {
     catch (gpuError) {
       console.warn("GPU hand tracking unavailable; falling back to CPU", gpuError);
       setStatus("GPU 不可用，正在切换兼容模式…");
+      setCameraBoot("正在切换兼容模式", "手机 GPU 模式不可用，改用 CPU 继续启动…", 84);
       return make("CPU");
     }
   })();
@@ -457,10 +464,22 @@ function showCameraHelp(title, text) {
 }
 function hideCameraHelp() { els.cameraHelp.classList.remove("is-visible"); }
 
+function setCameraBoot(title, text, progress = 10) {
+  els.cameraBootTitle.textContent = title; els.cameraBootText.textContent = text;
+  els.cameraBootProgress.style.width = `${Math.max(4, Math.min(100, progress))}%`;
+  els.cameraBoot.classList.add("is-visible"); els.cameraBoot.setAttribute("aria-hidden", "false");
+}
+function hideCameraBoot() {
+  els.cameraBoot.classList.remove("is-visible"); els.cameraBoot.setAttribute("aria-hidden", "true");
+}
+
 function cameraErrorMessage(error, stage) {
   const embedded = window.self !== window.top;
   if (stage === "policy") return ["当前窗口禁止摄像头", "这个内嵌预览没有获得摄像头权限。请点击“在新窗口打开”，再允许浏览器访问摄像头。"];
+  if (stage === "model" && error?.code === "MODEL_TIMEOUT") return ["摄像头可用，但模型加载超时", "当前网络下载手势模型过慢。请切换 Wi‑Fi/5G 后重试；照片、音乐和触控粒子仍可正常使用。"];
   if (stage === "model") return ["相机已连接，但识别模型未启动", "已自动尝试 GPU 和兼容模式。请更新 Chrome、Edge 或 Safari 后重试；鼠标/触控模式仍可使用全部造型。"];
+  if (error?.code === "UNSUPPORTED") return ["当前浏览器不支持摄像头调用", "请复制网址到系统 Chrome、Edge 或 Safari 打开，不要使用微信、QQ、抖音等应用内置浏览器。"];
+  if (error?.code === "INSECURE") return ["摄像头需要安全连接", "请确认地址栏以 https:// 开头，然后在系统 Chrome、Edge 或 Safari 中重新打开。"];
   if (error?.name === "NotAllowedError") return ["没有获得摄像头权限", embedded ? "内嵌窗口可能拦截了权限。请在新窗口打开，并在地址栏的摄像头设置里选择“允许”。" : "请点击地址栏旁的摄像头图标，将权限改为“允许”，然后重新尝试。"];
   if (error?.name === "NotFoundError") return ["没有找到摄像头", "请确认设备有可用摄像头，或连接外接摄像头后重新尝试。"];
   if (error?.name === "NotReadableError") return ["摄像头正被占用", "请先关闭微信、腾讯会议或其他正在使用摄像头的软件，然后重新尝试。"];
@@ -471,25 +490,31 @@ async function startCamera() {
   if (cameraStarting) return;
   if (cameraStream) { stopCamera(); return; }
   revealExperience(); hideCameraHelp(); cameraStarting = true;
+  setCameraBoot("正在请求摄像头权限", "请在浏览器弹窗中选择“允许”", 10);
   try {
     if (!isSecureContext && !["localhost","127.0.0.1"].includes(location.hostname)) throw Object.assign(new Error("Camera requires HTTPS"), { code: "INSECURE" });
     if (!navigator.mediaDevices?.getUserMedia) throw Object.assign(new Error("getUserMedia unavailable"), { code: "UNSUPPORTED" });
-    const policy = document.permissionsPolicy || document.featurePolicy;
-    if (policy?.allowsFeature && !policy.allowsFeature("camera")) {
-      const [title,text] = cameraErrorMessage(null,"policy"); showCameraHelp(title,text); setStatus("内嵌窗口未开放摄像头权限","error"); return;
-    }
     setStatus("正在请求摄像头权限…");
     cameraStream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode:"user", width:{ideal:960}, height:{ideal:720} }, audio:false
     });
     video.srcObject = cameraStream; await video.play();
-    els.preview.classList.add("is-visible");
-    try { await loadHandTracking(); }
+    els.preview.classList.add("is-visible"); els.preview.setAttribute("aria-hidden","false");
+    setStatus("摄像头已开启 · 正在加载手势模型…","live");
+    setCameraBoot("摄像头已开启", "正在下载并初始化手势模型，首次约需 10–30 秒…", 34);
+    try {
+      await Promise.race([
+        loadHandTracking(),
+        new Promise((_, reject) => setTimeout(() => reject(Object.assign(new Error("Model load timeout"), { code:"MODEL_TIMEOUT" })), 45000))
+      ]);
+    }
     catch (error) {
       console.error("Hand model failed", error); stopCamera(false);
       const [title,text] = cameraErrorMessage(error,"model"); showCameraHelp(title,text); setStatus("手势模型启动失败 · 鼠标模式可用","error"); return;
     }
     els.camera.classList.add("is-active"); setStatus("手势识别中 · 捏合 / 张手 / 握拳","live");
+    setCameraBoot("手势识别已就绪", "把手放进左上角预览画面，开始互动吧", 100);
+    setTimeout(hideCameraBoot, 850);
     running = true; detectHands();
   } catch (error) {
     console.error("Camera start failed", error); stopCamera(false);
@@ -500,7 +525,8 @@ async function startCamera() {
 function stopCamera(updateStatus = true) {
   running = false; tracking = false;
   cameraStream?.getTracks().forEach((track)=>track.stop()); cameraStream = null; video.srcObject = null;
-  els.preview.classList.remove("is-visible"); els.camera.classList.remove("is-active");
+  els.preview.classList.remove("is-visible"); els.preview.setAttribute("aria-hidden","true"); els.camera.classList.remove("is-active");
+  hideCameraBoot();
   if (updateStatus) setStatus("摄像头已关闭 · 鼠标模式");
 }
 
@@ -512,7 +538,10 @@ function detectHands() {
     try {
       const result = handLandmarker.detectForVideo(video, now);
       if (result.landmarks?.length) processHand(result.landmarks[0]);
-      else if (++lostFrames > 12) { tracking = false; setMode("form"); }
+      else if (++lostFrames > 12) {
+        tracking = false; setMode("form");
+        if (lostFrames === 13) setStatus("摄像头已开启 · 请把整只手放入左上角画面", "live");
+      }
     } catch (error) { console.warn("Hand detection frame skipped", error); }
   }
   requestAnimationFrame(detectHands);

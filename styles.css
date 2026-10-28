@@ -132,6 +132,19 @@ h1 em { color: var(--rose); font-style: italic; text-shadow: 0 0 34px rgba(255, 
 .camera-preview video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
 .camera-preview span { position: absolute; left: 7px; top: 6px; padding: 2px 5px; border-radius: 4px; background: rgba(0,0,0,.52); font-size: 7px; letter-spacing: .13em; }
 
+.camera-boot { position: absolute; z-index: 11; left: 50%; bottom: 92px; display: flex; align-items: center; gap: 14px; width: min(390px,calc(100vw - 32px)); padding: 14px 18px; border: 1px solid rgba(255,219,226,.22); border-radius: 16px; background: rgba(15,8,12,.88); box-shadow: 0 20px 70px rgba(0,0,0,.48); backdrop-filter: blur(20px); opacity: 0; visibility: hidden; transform: translate(-50%,12px); transition: .35s; }
+.camera-boot.is-visible { opacity: 1; visibility: visible; transform: translate(-50%,0); }
+.boot-spinner { position: relative; flex: 0 0 38px; width: 38px; height: 38px; }
+.boot-spinner i { position: absolute; inset: 0; border: 1px solid rgba(255,111,145,.22); border-radius: 50%; animation: bootPulse 1.5s ease-out infinite; }
+.boot-spinner i:last-child { animation-delay: -.75s; }
+@keyframes bootPulse { 0% { opacity: .9; transform: scale(.34); } 100% { opacity: 0; transform: scale(1); } }
+.boot-copy { min-width: 0; flex: 1; }
+.boot-copy strong, .boot-copy small { display: block; }
+.boot-copy strong { font-size: 11px; letter-spacing: .08em; }
+.boot-copy small { margin-top: 4px; color: rgba(255,248,243,.48); font-size: 9px; line-height: 1.45; }
+.boot-progress { height: 2px; margin-top: 9px; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.08); }
+.boot-progress i { display: block; width: 8%; height: 100%; border-radius: inherit; background: linear-gradient(90deg,var(--rose),var(--gold)); box-shadow: 0 0 10px rgba(255,111,145,.6); transition: width .55s ease; }
+
 .camera-help { position: absolute; z-index: 12; left: 50%; bottom: 30px; width: min(470px, calc(100vw - 32px)); padding: 24px 26px; border: 1px solid rgba(255,143,169,.32); border-radius: 18px; background: rgba(20,10,15,.94); box-shadow: 0 25px 90px rgba(0,0,0,.55); backdrop-filter: blur(24px); opacity: 0; visibility: hidden; transform: translate(-50%, 18px); transition: .4s; }
 .camera-help.is-visible { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
 .camera-help .eyebrow { margin-bottom: 9px; }
@@ -162,7 +175,8 @@ input:focus, textarea:focus { border-color: var(--rose); }
   .controls button { width: 38px; height: 38px; }
   .status { left: 16px; bottom: max(16px, env(safe-area-inset-bottom)); }
   .gesture-card { bottom: max(62px, calc(env(safe-area-inset-bottom) + 50px)); }
-  .camera-preview { display: none; }
+  .camera-preview { display: block; left: 14px; right: auto; top: max(14px, env(safe-area-inset-top)); bottom: auto; width: 74px; border-radius: 12px; }
+  .camera-preview.is-visible { opacity: .72; }
   .memory-main { right: -34px; top: 44%; width: 130px; }
   .memory-crop { width: 92px; }
   .crop-one { left: -22px; bottom: 18%; }
@@ -175,8 +189,9 @@ input:focus, textarea:focus { border-color: var(--rose); }
   .shape-picker button { width: 42px; height: 42px; }
   .shape-picker small { display: none; }
   .gesture-card { bottom: max(70px, calc(env(safe-area-inset-bottom) + 58px)); }
-  .status { bottom: max(18px, env(safe-area-inset-bottom)); }
-  .shape-picker.is-visible ~ .status { opacity: 0; }
+  .status { left: 14px; top: max(78px, calc(env(safe-area-inset-top) + 68px)); bottom: auto; max-width: 200px; padding: 6px 9px; border-radius: 999px; background: rgba(12,7,10,.48); backdrop-filter: blur(10px); }
+  .status b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .camera-boot { bottom: max(112px, calc(env(safe-area-inset-bottom) + 100px)); padding: 13px 15px; }
   .camera-help { bottom: max(18px, env(safe-area-inset-bottom)); padding: 22px 20px; }
   .dedication { top: 13%; }
   dialog form { padding: 32px 24px 24px; }
